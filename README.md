@@ -1,19 +1,43 @@
-# Web2Zip API
+<div align="center">
 
-Download any website as a ZIP archive. Free, no auth required.
+# 🌐 Web2Zip API
 
-Two engines, same base URL:
+### Download any website as a ZIP — free, no auth
 
-| Endpoint | Engine | How it works |
-|----------|--------|-------------|
-| `/copy?url=` | Node.js proxy (45 LOC) | Submits to SaveWeb2ZIP upstream, polls, returns download link |
-| `/copy2?url=` | Python self-hosted (725 LOC) | Full crawl — parses HTML, downloads CSS/JS/images/fonts, zips, uploads to tmpfiles.org |
+[![Vercel](https://img.shields.io/badge/Vercel-Deployed-000?style=for-the-badge&logo=vercel&logoColor=white)](https://web2zip-api.vercel.app)
+[![GitHub](https://img.shields.io/github/stars/zedxlab/web2zip-api?style=for-the-badge&logo=github&color=yellow)](https://github.com/zedxlab/web2zip-api)
+[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge&logo=open源initiative&logoColor=white)](#)
+[![Owner](https://img.shields.io/badge/Owner-@zade4everbot-pink?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/zade4everbot)
 
-## Usage
+---
 
-### `GET /copy?url=https://example.com`
+**One link. One call. Full website zip.**
 
-Proxy via SaveWeb2ZIP. Simple and fast (~2s).
+`GET /copy?url=https://any-site.com` → JSON with download link
+
+</div>
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# One-shot — get download link
+curl https://web2zip-api.vercel.app/copy?url=https://example.com
+
+# Self-hosted scraper (faster, full assets)
+curl https://web2zip-api.vercel.app/copy2?url=https://example.com
+```
+
+---
+
+## 🔌 Endpoints
+
+### `GET /copy?url=<site>` — Proxy Engine
+
+> Node.js · 45 LOC · Zero deps · ~2s
+
+Submits URL → polls upstream → returns download link.
 
 ```json
 {
@@ -26,9 +50,13 @@ Proxy via SaveWeb2ZIP. Simple and fast (~2s).
 }
 ```
 
-### `GET /copy2?url=https://example.com`
+---
 
-Self-hosted Python scraper. Downloads everything (HTML, CSS, JS, images, fonts, media), zips it, uploads to tmpfiles.org.
+### `GET /copy2?url=<site>` — Self-Hosted Engine
+
+> Python · 725 LOC · Full crawl · ~0.3s
+
+Parses HTML → downloads CSS/JS/images/fonts/media → zips → uploads to tmpfiles.org.
 
 ```json
 {
@@ -46,27 +74,73 @@ Self-hosted Python scraper. Downloads everything (HTML, CSS, JS, images, fonts, 
 }
 ```
 
-### `GET /download/{file_id}`
+---
 
-Direct ZIP download (local fallback, expires in 5 minutes).
+### `GET /download/<file_id>` — Direct ZIP
 
-## `/copy2` vs `/copy`
+> Local fallback · Instant · Expires in 5 min
 
-| Feature | `/copy` (Node.js) | `/copy2` (Python) |
-|---------|-------------------|---------------------|
-| Dependencies | Zero (fetch only) | aiohttp, bs4, lxml, aiofiles |
-| Scraper | Upstream (SaveWeb2ZIP) | Self-hosted, full crawl |
-| Assets | Whatever upstream grabs | CSS, JS, images, fonts, media, inline URLs |
-| Upload | Upstream's link | tmpfiles.org (permanent) |
-| Local fallback | No | Yes (`/download/{id}`) |
-| Speed | ~2s | ~0.3s |
-| Size limit | Upstream decides | 19MB |
-| Reliability | Depends on upstream | Self-contained |
+---
 
-## Owner
+## 📊 Engine Comparison
 
-[@zade4everbot](https://t.me/zade4everbot)
+| | `/copy` | `/copy2` |
+|---|---|---|
+| **Language** | `Node.js` | `Python` |
+| **Code** | 45 LOC | 725 LOC |
+| **Dependencies** | Zero | 6 packages |
+| **Engine** | SaveWeb2ZIP upstream | Self-hosted crawler |
+| **Speed** | ~2s | ~0.3s |
+| **Assets** | Upstream decides | CSS + JS + Images + Fonts + Media |
+| **Upload** | Upstream link | tmpfiles.org (permanent) |
+| **Local Fallback** | ❌ | ✅ `/download/{id}` |
+| **Reliability** | Depends on upstream | Self-contained |
+| **Size Limit** | Upstream decides | 19MB |
 
-## License
+---
 
-MIT
+## 🛠️ Tech Stack
+
+<div align="center">
+
+![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
+![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)
+![BeautifulSoup](https://img.shields.io/badge/BeautifulSoup-3776AB?style=for-the-badge&logo=python&logoColor=white)
+
+</div>
+
+---
+
+## 📁 Structure
+
+```
+web2zip-api/
+├── api/
+│   ├── copy.js          # /copy — Node.js proxy (45 LOC)
+│   └── api.py           # /copy2 — Python self-hosted scraper (725 LOC)
+├── vercel.json           # Route config + build settings
+├── package.json
+├── requirements.txt
+└── README.md
+```
+
+---
+
+## 👤 Owner
+
+<div align="center">
+
+[![Telegram](https://img.shields.io/badge/@zade4everbot-2CA5E0?style=for-the-badge&logo=telegram&logoColor=white)](https://t.me/zade4everbot)
+[![GitHub](https://img.shields.io/badge/zedxlab-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/zedxlab)
+
+</div>
+
+---
+
+<div align="center">
+
+**Made with ❤️ by [@zade4everbot](https://t.me/zade4everbot)**
+
+</div>
