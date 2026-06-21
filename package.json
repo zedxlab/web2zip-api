@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Web2Zip API — download any website as a ZIP archive (powered by SaveWeb2ZIP)",
   "private": true,
-  "type": "module",
   "license": "MIT",
   "author": "@zade4everbot",
   "engines": {
