@@ -1,157 +1,149 @@
-/**
- * SaveWeb2ZIP API Proxy
- * POST /api/copy — Submit URL for copying
- * GET /api/status?id=hash — Check copy progress
- * GET /api/download?id=hash — Download ZIP
- */
+// Web2Zip API — single endpoint: /copy?url=<website>
+// Submits URL → polls status → returns download link
+// Owner: @zade4everbot
 
-const API_BASE = 'https://copier.saveweb2zip.com';
+const UPSTREAM = 'https://copier.saveweb2zip.com';
 
-const CORS_HEADERS = {
+const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
 
-function json(res, data, status = 200) {
-  return new Response(JSON.stringify(data), {
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data, null, 2), {
     status,
-    headers: { 'Content-Type': 'application/json', ...CORS_HEADERS },
+    headers: { 'Content-Type': 'application/json', ...CORS },
   });
 }
 
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
 export default async function handler(req) {
-  const { pathname, searchParams } = new URL(req.url);
+  const url = new URL(req.url);
 
   // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: CORS_HEADERS });
+    return new Response(null, { status: 204, headers: CORS });
   }
 
-  // POST /api/copy — submit URL
-  if (pathname === '/api/copy' && req.method === 'POST') {
-    const body = await req.json();
-    const { url, renameAssets, saveStructure, alternativeAlgorithm, mobileVersion } = body;
+  const path = url.pathname;
 
-    if (!url) return json(res, { error: 'url is required' }, 400);
+  // ── GET /copy?url=https://example.com ──
+  // One-shot: submit → poll → return { downloadUrl, status }
+  if (path === '/copy') {
+    const targetUrl = url.searchParams.get('url');
+    if (!targetUrl) {
+      return json({ error: 'Missing ?url= parameter', example: '/copy?url=https://example.com' }, 400);
+    }
 
     const startTime = Date.now();
 
     try {
-      const upstream = await fetch(`${API_BASE}/api/copySite`, {
+      // Step 1: Submit URL to upstream
+      const submitRes = await fetch(`${UPSTREAM}/api/copySite`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url,
-          renameAssets: renameAssets || false,
-          saveStructure: saveStructure || false,
-          alternativeAlgorithm: alternativeAlgorithm || false,
-          mobileVersion: mobileVersion || false,
-        }),
+        body: JSON.stringify({ url: targetUrl }),
       });
+      const submitData = await submitRes.json();
 
-      const data = await upstream.json();
+      if (!submitData.success && submitData.errorText) {
+        return json({
+          success: false,
+          error: submitData.errorText,
+          timeTaken: `${Date.now() - startTime}ms`,
+        }, 400);
+      }
 
-      return json(res, {
-        ...data,
+      const hash = submitData.md5;
+      if (!hash) {
+        return json({ success: false, error: 'No hash returned from upstream' }, 500);
+      }
+
+      // Step 2: Poll until finished (max 60s)
+      let status;
+      for (let i = 0; i < 40; i++) {
+        await sleep(1500);
+        const statusRes = await fetch(`${UPSTREAM}/api/getStatus/${hash}`);
+        status = await statusRes.json();
+        if (status.isFinished) break;
+      }
+
+      if (!status || !status.isFinished) {
+        return json({
+          success: false,
+          error: 'Timeout — site took too long to copy',
+          hash,
+          timeTaken: `${Date.now() - startTime}ms`,
+        }, 504);
+      }
+
+      if (!status.success) {
+        return json({
+          success: false,
+          error: status.errorText || 'Copy failed',
+          timeTaken: `${Date.now() - startTime}ms`,
+        }, 400);
+      }
+
+      // Step 3: Return download link
+      const downloadUrl = `${UPSTREAM}/api/downloadArchive/${hash}`;
+
+      return json({
+        success: true,
+        url: targetUrl,
+        files: status.copiedFilesAmount,
+        downloadUrl,
+        hash,
         timeTaken: `${Date.now() - startTime}ms`,
         owner: '@zade4everbot',
-        source: 'zadesh-web2zip-api',
       });
+
     } catch (err) {
-      return json(res, { error: err.message }, 500);
+      return json({ success: false, error: err.message }, 500);
     }
   }
 
-  // GET /api/status?id=hash
-  if (pathname === '/api/status' && req.method === 'GET') {
-    const id = searchParams.get('id');
-    if (!id) return json(res, { error: 'id (hash) is required' }, 400);
+  // ── GET /api/download?id=<hash> — direct ZIP stream ──
+  if (path === '/api/download') {
+    const hash = url.searchParams.get('id');
+    if (!hash) return json({ error: 'Missing ?id= parameter' }, 400);
 
-    const startTime = Date.now();
-
-    try {
-      const upstream = await fetch(`${API_BASE}/api/getStatus/${id}`);
-      const data = await upstream.json();
-
-      return json(res, {
-        ...data,
-        timeTaken: `${Date.now() - startTime}ms`,
-        owner: '@zade4everbot',
-        source: 'zadesh-web2zip-api',
-      });
-    } catch (err) {
-      return json(res, { error: err.message }, 500);
-    }
-  }
-
-  // GET /api/download?id=hash
-  if (pathname === '/api/download' && req.method === 'GET') {
-    const id = searchParams.get('id');
-    if (!id) return json(res, { error: 'id (hash) is required' }, 400);
-
-    try {
-      const upstream = await fetch(`${API_BASE}/api/downloadArchive/${id}`);
-
-      return new Response(upstream.body, {
-        status: upstream.status,
-        headers: {
-          'Content-Type': 'application/zip',
-          'Content-Disposition': `attachment; filename="web2zip-${id.slice(0, 8)}.zip"`,
-          ...CORS_HEADERS,
-        },
-      });
-    } catch (err) {
-      return json(res, { error: err.message }, 500);
-    }
-  }
-
-  // GET / — API docs
-  if (pathname === '/' || pathname === '/api') {
-    return json(res, {
-      name: 'Web2Zip API',
-      version: '1.0.0',
-      owner: '@zade4everbot',
-      description: 'Proxy API for SaveWeb2ZIP — download any website as a ZIP archive',
-      endpoints: {
-        'POST /api/copy': {
-          description: 'Submit a URL for copying',
-          body: {
-            url: 'string (required)',
-            renameAssets: 'boolean (default: false)',
-            saveStructure: 'boolean (default: false)',
-            alternativeAlgorithm: 'boolean (default: false)',
-            mobileVersion: 'boolean (default: false)',
-          },
-          response: 'Returns { md5, isFinished, success, copiedFilesAmount, timeTaken, owner, source }',
-        },
-        'GET /api/status?id=<hash>': {
-          description: 'Check copy progress (poll every 1.5s until isFinished=true)',
-          response: 'Returns { md5, isFinished, success, copiedFilesAmount, errorText, timeTaken, owner, source }',
-        },
-        'GET /api/download?id=<hash>': {
-          description: 'Download the ZIP archive',
-          response: 'ZIP file stream',
-        },
+    const upstream = await fetch(`${UPSTREAM}/api/downloadArchive/${hash}`);
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: {
+        'Content-Type': 'application/zip',
+        'Content-Disposition': `attachment; filename="site-${hash.slice(0, 8)}.zip"`,
+        ...CORS,
       },
-      errors: {
-        dns_not_resolved: 'Website is not available',
-        url_is_not_valid: 'Website address is invalid',
-        protocol_is_not_valid: 'Only http and https protocols are supported',
-        localhost_is_not_supported: 'Downloading local websites is not supported',
-        too_many_attempts: 'Too many attempts to copy this website',
-        not_found: 'Website not found',
-        website_size_is_too_large_for_downloading_in_few_minutes: 'Website is too large (>180s)',
-        wrong_captcha: 'Robot check failed',
-      },
-      status: 'free — no auth required',
-      repo: 'https://github.com/zade911786/web2zip-api',
     });
   }
 
-  return json(res, { error: 'Not found' }, 404);
-}
+  // ── GET /api/status?id=<hash> — manual status check ──
+  if (path === '/api/status') {
+    const hash = url.searchParams.get('id');
+    if (!hash) return json({ error: 'Missing ?id= parameter' }, 400);
 
-export const config = {
-  path: '/api/*',
-};
+    const statusRes = await fetch(`${UPSTREAM}/api/getStatus/${hash}`);
+    const data = await statusRes.json();
+    return json({ ...data, owner: '@zade4everbot' });
+  }
+
+  // ── GET / — docs ──
+  return json({
+    name: 'Web2Zip API',
+    version: '1.0.0',
+    owner: '@zade4everbot',
+    endpoints: {
+      'GET /copy?url=<site>': 'One-shot: submit → poll → return download link',
+      'GET /api/download?id=<hash>': 'Download ZIP by hash',
+      'GET /api/status?id=<hash>': 'Check copy status',
+    },
+    example: '/copy?url=https://numberpanel.tech',
+    note: 'Free, no auth required. Scrapes via SaveWeb2ZIP upstream.',
+  });
+}
