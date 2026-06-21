@@ -1,6 +1,24 @@
 {
-  "rewrites": [
-    { "source": "/copy", "destination": "/api/copy" },
-    { "source": "/copy/(.*)", "destination": "/api/copy" }
+  "builds": [
+    {
+      "src": "api/copy.js",
+      "use": "@vercel/node"
+    },
+    {
+      "src": "api/api.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb",
+        "maxDuration": 60
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/copy2", "dest": "/api/api.py" },
+    { "src": "/copy2/(.*)", "dest": "/api/api.py" },
+    { "src": "/api/copy2", "dest": "/api/api.py" },
+    { "src": "/copy", "dest": "/api/copy.js" },
+    { "src": "/api/copy", "dest": "/api/copy.js" },
+    { "src": "/download/(.*)", "dest": "/api/api.py" }
   ]
 }
